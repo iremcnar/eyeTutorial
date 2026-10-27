@@ -1,0 +1,269 @@
+GLOSSARY - Eye -> Space (ASCII animation)
+=========================================
+
+--- GENERAL TERMS ---
+ASCII        : Image drawn with text characters
+FPS          : Frames Per Second
+SS           : SuperSampling, computing SS x SS sub-pixels per cell and averaging (anti-aliasing)
+Tk           : Tkinter, Python's standard GUI library
+np           : NumPy, fast array/matrix math
+RNG          : Random Number Generator
+RGB          : Red-Green-Blue color channels
+Lerp         : Linear interpolation, blending between two values (mix in the code)
+Smoothstep   : Smooth 0->1 transition curve (ss and ease in the code)
+Bloom        : Glow effect where bright areas bleed light into their surroundings
+Vignette     : Darkening toward the edges
+Dither       : Tiny random offset used to break up banding (HSC)
+Tone mapping : Compressing brightness into the 0-1 range (the 1 - exp(-2x) line)
+Catchlight   : Bright light reflection inside the eye
+Procedural   : No image files; everything is generated with math
+
+--- CONSTANTS (SETTINGS AT THE TOP) ---
+SIZE         : Font size
+ASPECT       : Aspect ratio multiplier (determines the number of columns)
+MAXROWS      : Maximum number of rows
+TK_MS        : Time budget per frame for Tkinter drawing (milliseconds)
+T_OPEN       : Time the eye starts opening (sec)
+T_OPEN_D     : Duration of the eye opening
+T_BLINK      : Time of the blink
+T_Z0         : Zoom start time
+T_ZD         : Zoom duration
+ZEND         : Final zoom amount
+T_SPACE      : Moment the space scene begins
+T_HEART      : Moment the nebula starts morphing into a heart
+T_HEART_D    : Duration of the heart morph
+WO           : Half-width of the eye opening (Width Opening)
+HU, HL       : Upper / lower lid height (Height Upper / Lower)
+RI           : Iris radius (Radius Iris)
+RP0          : Base pupil radius
+GS0          : Base star spread scale (Gaze/Star Scale)
+GS_MAX       : Upper limit of the star spread
+RAMP         : Characters ordered from dark to bright (brightness -> character)
+NR           : Length of RAMP minus 1 (highest index)
+CIDX         : Dictionary mapping character -> RAMP index
+QL           : Color quantization levels (24 steps per channel)
+
+--- FUNCTIONS ---
+ss(a,b,x)        : Smoothstep, smoothly maps x from the a-b range to 0-1
+ease(t)          : Scalar smoothstep (ease in, ease out)
+zp(t)            : Zoom progress (0-1)
+mix(a,b,k)       : Lerp, blend between a and b
+_up2             : Smoothly upscales a small random 2D grid
+_norm            : Normalizes noise into the 0-1 range
+tex2d            : Generates a multi-layer (fractal) 2D texture
+noise1d          : Generates smooth 1D noise
+bil              : Bilinear sampling, smooth lookup from a texture
+init             : Sets up cell/window sizes and coordinate grids
+blink_c          : Blink curve (0 = open, 1 = closed)
+lid_open         : Eyelid openness over time
+gaze             : Computes gaze direction (gx, gy)
+lid_edges_scalar : Position of the upper/lower lid edge at a given x
+heart_nebula     : Draws the heart-shaped nebula cloud in space
+eye_scene        : Draws the whole eye (sclera, iris, pupil, lids, skin)
+reset            : Resets the animation state
+update_world     : Updates stars, shooting stars and the comet
+put              : Safely (bounds-checked) places a single character
+stamp_streak     : Draws a shooting star / comet with characters
+stamp_stars      : Stamps the stars as characters
+stamp_lashes     : Stamps the eyelashes as characters
+bloom            : Applies the glow effect
+render_cells     : Computes one frame and returns character + color arrays
+plan_updates     : Decides which cells to redraw (within the budget)
+main             : Builds the window and starts the animation loop
+tick             : Per-frame update/draw function
+
+--- RANDOM / TEXTURE VARIABLES ---
+rng          : NumPy random generator (fixed seed = same result every run)
+prnd         : Python random generator (used for shooting stars)
+TS           : Skin texture
+TG           : Grain texture, general/nebula noise
+TW           : White noise (eyebrow hairs, skin specks)
+TV, TV2      : Vein-like line texture (ridged noise); sclera veins and heart veins
+NA           : Length of the angular noise tables
+A1, A2       : Angular noise for iris fibers
+A3           : Wobble of the collarette (iris ring) boundary
+A4           : Iris crypt (dark pit/spot) pattern
+
+--- STAR VARIABLES ---
+NS           : Number of stars
+SX, SY       : Star x and y position
+SD           : Star depth
+SB           : Star brightness
+SCOL         : Star color (blue-white to yellow)
+SPH          : Twinkle phase
+SF           : Twinkle frequency
+streaks      : List of active shooting stars
+Streak       : Shooting star class (position, velocity, life, tail length, color)
+soft         : Soft drawing mode (used for the comet)
+S            : Global state dict (last time, next shooting star, comet exists)
+
+--- EYE MOVEMENT / LASHES ---
+GZ           : Gaze keyframes, list of gaze change moments
+UP_L         : List of upper lashes
+LO_L         : List of lower lashes
+NUP, NLO     : Number of upper / lower lashes
+D            : Empty dict (unused in the code)
+ARROWS_OK    : Declared but unused
+
+--- SIZES / COORDINATES (init) ---
+CW, CH       : Cell Width / Height, pixel size of one character cell
+ROWS         : Number of rows
+COLS         : Number of columns
+W, H         : Width / height of the whole canvas (pixels)
+GW, GH       : Width / height of the supersampled grid
+X, Y         : Normalized coordinate of each sub-pixel (center = 0, height = 1 unit)
+RS           : Distance from the center (for X, Y)
+XC, YC       : Same, but for cell centers
+RSC          : Distance of cell centers from the center
+HSC          : Fixed pseudo-random number per cell (used for dither)
+
+--- eye_scene VARIABLES ---
+z            : Zoom amount
+iz           : 1/z, inverse zoom
+px           : Size of one sub-pixel in eye space (for anti-aliasing)
+u, v         : Eye-space coordinates (x, y after zoom)
+gx, gy       : Gaze offset
+pm_u, pm_v   : Coordinates relative to the pupil center
+r            : Distance from the pupil center
+Rp           : Pupil radius
+Rps          : Pupil radius on screen (Rp * z)
+ou           : Lid openness value (lid open, upper)
+sp           : Space, the space image seen inside the pupil
+near         : Whether zoom is low enough that skin/lids are also drawn
+s            : u divided by WO (position along the eye, -1..1)
+sa           : Clamped version of s
+wu           : Left/right width of the upper lid curve
+cu, cl       : Upper / lower lid curve
+vt           : Tilted v, vertical coordinate adjusted for lid slope
+vu, vl       : Vertical position of the upper / lower lid edge
+vc           : Closed-state lid line
+du_in, dl_in : Inner distance to the upper / lower lid
+d_in         : Inner distance to the nearest edge of the eye opening
+m_in         : Mask inside, whether a point is inside the eye opening (0-1)
+ia           : Angle index into the noise tables
+ang          : Normalized angle (0-1)
+rn           : Normalized radius inside the iris
+rb, i0, fr   : Radial bin, integer part and fraction (for fiber blending)
+fib          : Fiber, iris fiber brightness
+zig          : Zigzag, jagged edge of the inner iris ring
+cr           : Collarette radius, radius of the inner iris ring
+mm           : Blend ratio between amber (inner) and rust (outer)
+amber        : Inner iris color
+rust         : Outer iris color (rusty brown)
+ir           : Iris color
+cry          : Crypt, iris pit/spot mask
+scl          : Sclera, the white part of the eye
+cw           : Corner weight, closeness to the eye corners (for redness)
+sh           : Shade, shading multiplier
+vein         : Sclera vein mask
+im           : Iris mask, whether a point is inside the iris
+inside       : Color inside the eye opening
+vig          : Vignette, darkening at the pupil edge
+pm           : Pupil mask (1 = space visible)
+fade         : Catchlight visibility (disappears as zoom increases)
+win, win2    : Window, the two bright reflection spots in the eye
+dd, dd2      : Distance to the reflection spot
+mid          : Midpoint between the upper and lower lid
+upper        : Whether a point is in the upper lid region
+du, dl       : Distance to the upper / lower lid edge
+tx           : Skin texture value
+skin         : Skin color
+cr_pos       : Lid crease position
+lidzone      : Lid region mask
+sb           : Center weighting of the eyebrow shape
+eb           : Eyebrow mask
+hair         : Eyebrow hair texture
+line         : Lid line (dark)
+wl           : Waterline, redness of the lower lid edge
+gl           : Gloss, wet shine of the lower lid
+sp_          : Small bright specks on the skin
+cg           : Caruncle, the pink fleshy part in the inner corner of the eye
+
+--- heart_nebula VARIABLES ---
+xs, ys       : Input coordinates
+sz           : Heart size
+hm           : Heart morph, circle -> heart blend (0-1)
+hx, hy       : Heart coordinates (scaled)
+nC, nD       : Low-frequency noise that distorts the shape
+nA           : Mid-frequency noise that drifts over time
+nB           : High-frequency fine texture
+wob          : Wobble, cloud waviness multiplier
+hxw, hyw     : Warped coordinates
+qc           : Signed distance for the circle
+fh           : Value of the heart equation
+qh           : Signed distance for the heart
+q            : Blended signed distance (negative = inside the shape)
+ins          : Inside, how deep inside the shape (0-1)
+body         : Brightness of the nebula body
+tex          : Texture multiplier
+hcol         : Heart color (dark pink -> light pink)
+halo         : Glow spreading outward
+rim          : Edge ring glow
+rid          : Ridge, vein line mask
+drift        : Slow sideways drift of the nebula
+beat         : Heartbeat (slight grow/shrink)
+
+--- render_cells VARIABLES ---
+prog         : Zoom progress (0-1)
+idle         : Progress of the slight zoom at the start
+zsp          : Zoom in the space scene
+gs           : Star spread scale
+gh           : Nebula scale
+full         : Whether the pupil covers the whole screen (space only)
+star_amt     : Star visibility amount
+neb_amt      : Nebula visibility amount
+offx, offy   : Offset caused by gaze
+img          : Full-resolution color image
+pmc          : Pupil mask per cell
+solid        : Cells outside the pupil (drawn as solid)
+cells        : Average color per cell
+lum          : Luminance, perceived brightness
+li           : Gamma-adjusted brightness
+ri           : Ramp index, character index chosen by brightness
+idx          : Character index of each cell
+fg           : Foreground, character color
+vigc         : Per-cell vignette
+q            : Quantized color (0..QL-1)
+
+--- stamp_* VARIABLES ---
+L            : Per-cell brightness array (li)
+d            : Star depth
+alpha        : Star visibility
+ok, ii       : Mask / indices of stars visible on screen
+b            : Star brightness
+big          : Bright stars (that get rays)
+ln           : Ray length
+hx, hy       : Head position of the shooting star
+dx, dy       : Direction vector
+tc           : Tail character (- | / \)
+cl           : Closed amount (1 - openness), in stamp_lashes
+a0           : Lash start angle
+Lh           : Lash length
+curl         : Lash curl
+draw         : Inner function that draws one lash cell by cell
+pick         : Picks a character from the angle (- / | \)
+to_cell      : Converts eye coordinates to cell coordinates
+
+--- Tkinter / MAIN LOOP ---
+root         : Main window
+cv           : Canvas, the drawing area
+fnt          : Monospace font in use
+mono         : Chosen font family
+ch_, cw_     : Font line height / character width
+items        : Canvas text objects, one per cell
+d_idx        : Character indices currently displayed on screen
+d_q          : Colors currently displayed on screen
+hexc         : Cache mapping color -> hex string
+hx           : Converts an RGB step into a "#rrggbb" string
+st           : Timer state (t0, budget, cost)
+budget       : Maximum number of cells that can be updated in one frame
+cost         : Average draw cost per cell (sec)
+delta        : Largest color difference
+need         : Cells that need updating
+prio         : Priority (cells with changed characters go first)
+restart      : Restarts the animation from the beginning with the "R" key
+dt           : Time between two frames (delta time)
+
+--- KEYS ---
+Esc          : Quit
+R            : Restart the animation
